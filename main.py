@@ -9,11 +9,11 @@ def run(module_filename, input_filename):
     part = getattr(challenge, 'Part2', challenge.Part1)()
 
     if part.test_expectation is not None:
-        test_result = part.run(challenge.read_input('resources/test.txt'))
+        test_result = part.run(challenge.read_input('resources/test.txt'), is_test=True)
         assert(test_result == part.test_expectation), \
             'expected test result to be {}, actually was {}'.format(part.test_expectation, test_result)
         print('Test succeeded')
-    print('Challenge result: {}'.format(part.run(challenge.read_input(input_filename))))
+    print('Challenge result: {}'.format(part.run(challenge.read_input(input_filename), is_test=False)))
 
 
 if __name__ == '__main__':
