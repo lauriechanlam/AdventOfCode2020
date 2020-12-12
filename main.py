@@ -7,6 +7,7 @@ import utils
 def run(module_filename, input_filename):
     challenge = importlib.import_module(module_filename.replace('.py', ''))
     part = getattr(challenge, 'Part2', challenge.Part1)()
+    print(type(part).__name__)
 
     if part.test_expectation is not None:
         test_result = part.run(challenge.read_input('resources/test.txt'), is_test=True)
