@@ -1,181 +1,92 @@
-import itertools
 import re
 import utils
 import numpy
 
-mem_pattern = re.compile(r'mem\[(?P<bit>\d+)] = (?P<value>\d+)')
-mask_pattern = re.compile(r'mask = (?P<value>[01X]+)')
-# container = container_pattern.match(line).group('container')
-# content = {match.group('color'): int(match.group('count')) for match in content_pattern.finditer(line)}
-
+pattern = re.compile(r'(mem\[(?P<address>\d+)\] = (?P<value>\d+))|(mask = (?P<mask>[01X]+))')
+ZERO = numpy.uint64(0)
+ONE = numpy.uint64(1)
+RANGE = [numpy.uint64(i) for i in range(0, 36)]
+MASK = numpy.sum([ONE << i for i in RANGE])
 
 def read_input(filename):
-    return utils.read(filename, 'string').splitlines()
-    return utils.read(filename, 'string').splitlines()
+    lines = utils.read(filename, 'string').splitlines()
 
+    def make_instruction(line):
+        match = pattern.match(line)
+        if match.group('mask') is not None:
+            return list(str(match.group('mask')))  #[uint64(char) if char in '01' else 'X' for char in list(str(match.group('mask')))]
+        return {'address': numpy.uint64(match.group('address')), 'value': numpy.uint64(match.group('value'))}
 
-def read_input_1(lines):
-    def mem_(line):
-        c = mem_pattern.match(line)
-        return {'bit': int(c.group('bit')), 'value': int(c.group('value'))} if c is not None else None
-    def mask_(line):
-        m = []
-        m.append(set())
-        m.append(set())
-        c = mask_pattern.match(line)
-        if c is None:
-            return None
-        d = str(c.group('value'))
-        for i, r in enumerate(d):
-            if r == '0' or r == '1':
-                e = int(r)
-                m[e].add(35 - i)
-        return m
+    return [make_instruction(line) for line in lines]
 
-    return [ {'mem': mem_(line), 'mask': mask_(line)} for line in lines ]
-
-def res(v, bitmask):
-    value = v
-    i_0 = bitmask[0]
-    for i in i_0:
-        #if (value / 2 ** i) % 2 == 1:
-        #    value -= 2 ** i
-        if value >> numpy.uint64(i) & numpy.uint64(1) == numpy.uint64(1):
-            value -= numpy.uint64(1) << numpy.uint64(i)
-    i_1 = bitmask[1]
-    for i in i_1:
-        value |= numpy.uint64(1) << numpy.uint64(i)
-
-        #if (value / 2 ** i) % 2 == 0:
-        #    value += 2 ** i
-    return keep_36bits(value)
-
-def keep_36bits(val):
-    v = numpy.uint64(0)
-    for i in range(0, 36):
-        v |= numpy.uint64(1) << numpy.uint64(i)
-    return val & v
 
 class Part1(utils.Part):
     def __init__(self):
         super().__init__(165)
 
     def run(self, input, is_test):
-        input = read_input_1(input)
         memory = {}
-        for x in input:
-            if x['mem'] is not None:
-                pos = x['mem']['bit']
-                val = numpy.uint64(x['mem']['value'])
-                memory[pos] = res(val, bitmask)
-            elif x['mask'] is not None:
-                bitmask = x['mask']
-            print(memory)
-        return sum([keep_36bits(val) for i, val in memory.items()])
+        for instruction in input:
+            if isinstance(instruction, list):  # mask
+                bitmask = instruction
+            else:
+                address = instruction['address']
+                value = instruction['value']
+                memory[address] = Part1.apply(bitmask, value)
+        return sum([val for val in memory.values()])
 
+    @staticmethod
+    def apply(bitmask, value):
 
+        change_bit = {
+            '0': lambda val, i: value - ONE << i if value >> i & ONE == ONE else value,
+            '1': lambda val, i: value | ONE << i,
+            'X': lambda val, i: value
+        }
 
+        for pos in RANGE:
+            bit = bitmask[int(RANGE[-1] - pos)]
+            value = change_bit[bit](value, pos) & MASK
 
-
-
-
-def read_input_2(lines):
-    def mem_(line):
-        c = mem_pattern.match(line)
-        return {'bit': int(c.group('bit')), 'value': int(c.group('value'))} if c is not None else None
-    def mask_(line):
-        m = []
-        m.append(set())
-        m.append(set())
-        c = mask_pattern.match(line)
-        if c is None:
-            return None
-        return str(c.group('value'))
-        for i, r in enumerate(d):
-            if r == '0' or r == '1':
-                e = int(r)
-                m[e].add(35 - i)
-        return m
-
-    return [ {'mem': mem_(line), 'mask': mask_(line)} for line in lines ]
-
-
-
-
-
-
-def res2(addr, bitmask):
-    print('{} {}'.format(addr, bitmask))
-    new_addr = addr
-    all_addr = set()
-    for i in range(35, -1, -1):
-        c = bitmask[i]
-        if c == '0':
-            pass
-        elif c == '1':
-            new_addr |= numpy.uint64(1) << numpy.uint64(35-i)
-        elif c == 'X':
-            b0 = ''.join([b if j != i else '0' for j, b in enumerate(bitmask)])
-            b1 = ''.join([b if j != i else '1' for j, b in enumerate(bitmask)])
-            all_addr = all_addr.union(res2(addr, b0))
-            all_addr = all_addr.union(res2(addr, b1))
-    if 'X' not in bitmask:
-        r = set()
-        r.add(new_addr)
-        return r
-    return all_addr
-
-def apply_bitmask(pos, bitmask):
-    res = []
-    for i in range(0, 36):
-        bit = bitmask[i]
-        if bitmask[i] == '0':
-            bit = str(numpy.uint64(pos) >> (numpy.uint64(35-i)) & numpy.uint64(1))
-        res.append(bit)
-    return ''.join(res)
-
-def get_pos(floating):
-    addr = set()
-    if 'X' not in floating:
-        f = numpy.uint64(0)
-        for i in range(0, 36):
-            if floating[i] == '1':
-                f |= numpy.uint64(1) << numpy.uint64(35-i)
-        addr.add(f)
-        return addr
-    for i, c in enumerate(floating):
-        if c == 'X':
-            fl = floating[:]
-            fl[i] = '1'
-            addr = addr.union(get_pos(fl))
-            fl = floating[:]
-            fl[i] = '0'
-            addr = addr.union(get_pos(fl))
-            return addr
+        return value
 
 
 class Part2(utils.Part):
     def __init__(self):
         super().__init__(208)
 
-    def run(self, inp,is_test):
-        input = read_input_2(inp)
+    def run(self, input, is_test):
         memory = {}
-        for x in input:
-            if x['mem'] is not None:
-                pos = x['mem']['bit']
-                val = numpy.uint64(x['mem']['value'])
+        for instruction in input:
+            if isinstance(instruction, list):  # mask
+                bitmask = instruction
+            else:
+                address = instruction['address']
+                value = instruction['value']
+                address_bitmask = Part2.get_address_bitmask(bitmask, address)
+                memory.update({addr: value for addr in Part2.get_addresses(address_bitmask)})
+        return sum([val for val in memory.values()])
 
+    @staticmethod
+    def get_address_bitmask(bitmask, address):
+        address_bitmask = bitmask[:]
+        for i in RANGE:
+            if bitmask[i] == '0':
+                address_bitmask[i] = '1' if address >> (RANGE[-1] - i) & ONE else '0'
+        return address_bitmask
 
-                result = apply_bitmask(pos, bitmask)
-                positions = get_pos(list(result))
-                #positions.add(pos)
-                for p in positions:
-                    memory[p] = val
-                print(memory)
+    @staticmethod
+    def get_addresses(address_bitmask):
+        addresses = set()
 
-            elif x['mask'] is not None:
-                bitmask = x['mask']
-        ret = sum([keep_36bits(val) for i, val in memory.items()])
-        if ret < 5751666782640:
-            return ret
+        try:
+            index = address_bitmask.index('X')
+        except ValueError:
+            address = numpy.sum([ONE << numpy.uint64(RANGE[-1] - i) for i in RANGE if address_bitmask[i] == '1'])
+            addresses.add(address)
+            return addresses
+
+        return set().union(
+            Part2.get_addresses(address_bitmask[:index] + ['1'] + address_bitmask[index + 1:]),
+            Part2.get_addresses(address_bitmask[:index] + ['0'] + address_bitmask[index + 1:])
+        )
