@@ -1,6 +1,7 @@
 import re
 import utils
 import numpy
+import itertools
 
 pattern = re.compile(r'(mem\[(?P<address>\d+)\] = (?P<value>\d+))|(mask = (?P<mask>[01X]+))')
 ZERO = numpy.uint64(0)
@@ -77,16 +78,13 @@ class Part2(utils.Part):
 
     @staticmethod
     def get_addresses(address_bitmask):
-        addresses = set()
+        x_indices = [i for i, c in enumerate(address_bitmask) if c == 'X']
+        combinations = itertools.product('01', repeat=len(x_indices))
 
-        try:
-            index = address_bitmask.index('X')
-        except ValueError:
-            address = numpy.sum([ONE << numpy.uint64(RANGE[-1] - i) for i in RANGE if address_bitmask[i] == '1'])
-            addresses.add(address)
-            return addresses
+        def replace(bitmask, combination):
+            mask = bitmask[:]
+            for i, j in enumerate(x_indices):
+                mask[j] = combination[i]
+            return mask
 
-        return set().union(
-            Part2.get_addresses(address_bitmask[:index] + ['1'] + address_bitmask[index + 1:]),
-            Part2.get_addresses(address_bitmask[:index] + ['0'] + address_bitmask[index + 1:])
-        )
+        return [''.join(replace(address_bitmask, combination)) for combination in combinations]
