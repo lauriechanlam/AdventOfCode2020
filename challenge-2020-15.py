@@ -1,22 +1,11 @@
-import re
 import utils
-import numpy
-import itertools
-
-pattern = re.compile(r'(mem\[(?P<address>\d+)\] = (?P<value>\d+))|(mask = (?P<mask>[01X]+))')
+from collections import defaultdict
 
 
 def read_input(filename):
-    n = utils.read(filename, 'string').split(',')
-    return [int(m) for m in n]
+    text = utils.read(filename, 'string').split(',')
+    return [int(n) for n in text]
 
-
-def turn(inp):
-    last_turn = inp[-1]
-    if inp.count(last_turn) == 1:
-        return 0
-    idx = [i for i, c in enumerate(inp) if c == last_turn]
-    return idx[-1] - idx[-2]
 
 class Part1(utils.Part):
     def __init__(self):
@@ -25,16 +14,16 @@ class Part1(utils.Part):
     def run(self, input, is_test):
         n = 10 if is_test else 2020
         while len(input) < n:
-            input.append(turn(input))
+            input.append(Part1.turn(input))
         return input[-1]
 
-
-def turn_with_cache(inp, cache):
-    last_turn = inp[-1]
-    c = cache[last_turn]
-    if len(c) == 1:
-        return 0
-    return c[-1] - c[-2]
+    @staticmethod
+    def turn(input):
+        num = input[-1]
+        if input.count(num) == 1:
+            return 0
+        turns = [i for i, n in enumerate(input) if n == num]
+        return turns[-1] - turns[-2]
 
 
 class Part2(utils.Part):
@@ -42,14 +31,12 @@ class Part2(utils.Part):
         super().__init__(175594)
 
     def run(self, input, is_test):
-        n = 30000000
-        cache = {}
-        for i, c in enumerate(input):
-            cache[c] = [i]
-        while len(input) < n:
-            val = turn_with_cache(input, cache)
-            input.append(val)
-            if val not in cache:
-                cache[val] = []
-            cache[val].append(len(input) - 1)
-        return input[-1]
+        turns_per_num = defaultdict(list)
+        for turn_count, num in enumerate(input):
+            turns_per_num[num].append(turn_count)
+        num = input[-1]
+        for turn_count in range(len(input), 30000000):
+            turns = turns_per_num[num]
+            num = turns[-1] - turns[-2] if len(turns) > 1 else 0
+            turns_per_num[num].append(turn_count)
+        return num
