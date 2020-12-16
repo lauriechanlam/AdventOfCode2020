@@ -2,29 +2,26 @@ import itertools
 import re
 import numpy
 import utils
-import collections
-from collections import defaultdict
 
-constrainsts_pattern = re.compile(r'(?P<cla>[a-z ]+): (?P<first>\d+)-(?P<sec>\d+) or (?P<thi>\d+)-(?P<four>\d+)')
-
-
-def constr(line):
-    match = constrainsts_pattern.fullmatch(line)
-    if match is None:
-        print(line)
-    r = range(int(match.group('first')), int(match.group('sec'))+1)
-    s = range(int(match.group('thi')), int(match.group('four'))+1)
-    return itertools.chain(r, s)
 
 def read_input(filename):
     text = utils.read(filename, 'string').split('\n\n')
-    constrainsts = [constr(line) for line in text[0].splitlines()]
-    t = set()
-    for c in constrainsts:
-        t = t.union(c)
 
-    tickets = [[int(r) for r in line.split(',')] for line in text[2].splitlines()[1:]]
-    return {'constraints': t, 'tickets': tickets}
+    pattern = re.compile(r'(?P<start>\d+)-(?P<end>\d+)')
+
+    def make_field(line):
+        name = line.split(':')[0]
+        ranges = [range(int(match.group('start')), int(match.group('end')) + 1) for match in pattern.finditer(line)]
+        return name, set(itertools.chain(*ranges))
+
+    def make_ticket(line):
+        return [int(value) for value in line.split(',')]
+
+    fields = dict([make_field(line) for line in text[0].splitlines()])
+    my_ticket = make_ticket(text[1].splitlines()[1])
+    tickets = [make_ticket(line) for line in text[2].splitlines()[1:]]
+
+    return {'fields': fields, 'my_ticket': my_ticket, 'tickets': tickets}
 
 
 class Part1(utils.Part):
@@ -32,58 +29,38 @@ class Part1(utils.Part):
         super().__init__(71)
 
     def run(self, input, is_test):
-        tickets = [r for t in input['tickets'] for r in t]
-        return sum([t for t in tickets if t not in input['constraints']])
+        possible_values = set().union(*input['fields'].values())
+        values = [value for ticket in input['tickets'] for value in ticket]
+        return sum([value for value in values if value not in possible_values])
 
 
-def read_line(line):
-    match = constrainsts_pattern.fullmatch(line)
-    if match is None:
-        print(line)
-    r = range(int(match.group('first')), int(match.group('sec'))+1)
-    s = range(int(match.group('thi')), int(match.group('four'))+1)
-    name = match.group('cla')
-    return [name, itertools.chain(r, s)]
-
-def read_input(filename):
-    text = utils.read(filename, 'string').split('\n\n')
-    constrainsts = [read_line(line) for line in text[0].splitlines()]
-    t = {c[0]: set(c[1]) for c in constrainsts}
-
-    my = [int(r) for r in text[1].splitlines()[1].split(',')]
-
-    tickets = [[int(r) for r in line.split(',')] for line in text[2].splitlines()[1:]]
-    return {'constraints': t, 'my': my, 'tickets': tickets}
-
-
-class Part1(utils.Part):
+class Part2(utils.Part):
     def __init__(self):
         super().__init__(None)
 
     def run(self, input, is_test):
-        const = set(itertools.chain(*input['constraints'].values()))
-        fields = input['constraints']
+        possible_values = set().union(*input['fields'].values())
+        fields = input['fields']
 
-        valids = [t for t in input['tickets'] + [input['my']] if all([r in const for r in t])]
-        t = numpy.transpose(valids)
-        tk = []
-        for x in t:
-            tk.append({key for key, val in fields.items() if all([s in val for s in x])})
+        valid_tickets = [ticket
+                         for ticket in input['tickets'] + [input['my_ticket']]
+                         if all([value in possible_values for value in ticket])]
+        valid_values = numpy.transpose(valid_tickets)
+        possible_fields = [
+            {
+                field
+                for field, field_values in fields.items()
+                if all([value in field_values for value in ticket_values])}
+            for ticket_values in valid_values
+        ]
 
-        st = {}
-        while any([len(c) > 1 for c in tk]):
-            for i, c in enumerate(tk):
-                if len(c) == 1:
-                    for j, d in enumerate(tk):
-                        if i != j and c.issubset(d):
-                            d.remove(*c)
+        while any([len(field) > 1 for field in possible_fields]):
+            fields_to_remove = [next(iter(fields)) for fields in possible_fields if len(fields) == 1]
+            for i, fields in enumerate(possible_fields):
+                if len(fields) != 1:
+                    possible_fields[i] = fields.difference(fields_to_remove)
 
-
-        m = input['my']
-        w = 1
-        for i, p in enumerate(m):
-            for c in tk[i]:
-                if c.startswith('departure'):
-                    w *= p
-        return w
-
+        prod = numpy.prod([value
+                           for i, value in enumerate(input['my_ticket'])
+                           if next(iter(possible_fields[i])).startswith('departure')])
+        return prod
