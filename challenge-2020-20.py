@@ -6,7 +6,7 @@ import math
 
 def read_input(filename):
     pattern = re.compile(r'Tile (?P<ID>\d+):')
-    tiles = utils.read(filename, 'string').split('\n\n')
+    tiles = [tile for tile in utils.read(filename, 'string').split('\n\n') if len(tile) != 0]
 
     def parse_tile(tile_info):
         lines = tile_info.splitlines()
