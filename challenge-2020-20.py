@@ -1,23 +1,23 @@
-import itertools
 import re
 import numpy
 import utils
-from collections import defaultdict
 import math
 import copy
+import functools
 
-
-tile_pattern = re.compile(r'Tile (?P<ID>\d+):')
 
 def read_input(filename):
-    return utils.read(filename, 'string')
+    pattern = re.compile(r'Tile (?P<ID>\d+):')
     tiles = utils.read(filename, 'string').split('\n\n')
-    def make_tile(lines):
-        id = int(tile_pattern.fullmatch(lines[0]).group('ID'))
-        lines = lines[1:]
-        return id, lines
-    tiles = [make_tile(tile.splitlines()) for tile in tiles]
-    return {tile[0]: tile[1] for tile in tiles}
+
+    def parse_tile(tile_info):
+        lines = tile_info.splitlines()
+        tile_id = int(pattern.fullmatch(lines[0]).group('ID'))
+        pixels = lines[1:]
+        return tile_id, pixels
+
+    tile_list = [parse_tile(tile) for tile in tiles]
+    return {tile_id: pixels for (tile_id, pixels) in tile_list}
 #
 # def arrange(tiles, flip, rotations, combi):
 #     n = int(math.sqrt(len(tiles)))
@@ -202,7 +202,7 @@ def count_monsters(txt):
             monster_count += 1
     return monster_count
 
-class Part2(utils.Part):
+class Part3(utils.Part):
     def __init__(self):
         super().__init__(273)
 
@@ -230,55 +230,91 @@ class Part2(utils.Part):
                         exit(1)
                     return r
 
+
+class Stack:
+    def __init__(self, tiles_count):
+        self.n = int(math.sqrt(tiles_count))
+        self.stack = numpy.empty((self.n, self.n), dtype=dict)
+        self.next_int = 0
+
+    @property
+    def next(self):
+        return divmod(self.next_int, self.n)
+
+    def contains(self, tile_id):
+        return any(grid['id'] == tile_id for grid in self.stack.flatten() if isinstance(grid, dict))
+
+    def can_add(self, grid):
+        if self.contains(grid['id']):
+            return False
+        i, j = self.next
+        if i > 0 and self.stack[i-1][j]['bottom_border'] != grid['top_border']:
+            return False
+        if j > 0 and self.stack[i][j-1]['right_border'] != grid['left_border']:
+            return False
+        return True
+
+    def push(self, grid):
+        self.stack[self.next] = grid
+        self.next_int += 1
+
+    def pop(self):
+        self.next_int -= 1
+        self.stack[self.next] = None
+
+    def is_full(self):
+        return self.next_int == self.n * self.n
+
+    def fill(self, grids_per_id):
+        for tile_id, grids in grids_per_id.items():
+            if self.contains(tile_id):
+                continue
+            for grid in grids:
+                if not self.can_add(grid):
+                    continue
+                self.push(grid)
+                self.fill(grids_per_id)
+                if self.is_full():
+                    return self
+                self.pop()
+
+    def corners(self):
+        corners_locations = ((0, 0), (0, -1), (-1, 0), (-1, -1))
+        return [self.stack[location]['id'] for location in corners_locations]
+
+    def __repr__(self):
+        return '\n'.join(['Stack ({})'.format(self.next)] + [
+            ' '.join(['({} {} {})'.format(tile['id'], tile['rotation'], tile['flip'])
+                      if isinstance(tile, dict) else '(XXXX X XXXX)' for tile in row])
+            for row in self.stack])
+
+
 class Part1(utils.Part):
     def __init__(self):
-        super().__init__(None)#20899048083289)
+        super().__init__(20899048083289)
 
     def run(self, tiles, is_test):
-        Part1.tiles = copy.deepcopy(tiles)
 
-        stack = Stack(int(math.sqrt(len(tiles))))
+        def get_grid(pixels, tile_id, rotation, flip):
+            return {
+                'id': tile_id,
+                'rotation': rotation,
+                'flip': flip,
+                'top_border': ''.join(pixels[0]),
+                'bottom_border': ''.join(pixels[-1]),
+                'right_border': ''.join(line[-1] for line in pixels),
+                'left_border': ''.join([line[0] for line in pixels])
+            }
 
-        transformed_tiles = []
-        for id, lines in tiles.items():
-            borders = [lines[0], ''.join([line[-1] for line in lines]), lines[-1][::-1], ''.join([line[0] for line in lines][::-1])]
-            tiles[id] = borders
-            for rotation in range(0, 4):
-                for flip in False, True:
-                    transformed_tiles.append((id, borders, rotation, flip))
+        def make_grids(tile_id, pixels):
+            pixels = list(map(list, pixels))
+            return [get_grid(numpy.rot90(pixels, rot), tile_id, rot, False) for rot in range(0, 4)] \
+                   + [get_grid(numpy.rot90(numpy.transpose(pixels), rot), tile_id, rot, True) for rot in range(0, 4)]
 
-        try_add_tiles(stack, transformed_tiles)
+        grids_per_id = {tile_id: make_grids(tile_id, pixels) for tile_id, pixels in tiles.items()}
 
-        ids = stack.corner_ids()
+        tiles_count = len(tiles)
+        stack = Stack(tiles_count)
+        stack.fill(grids_per_id)
 
-        return math.prod(ids)
-
-        # combinations = itertools.permutations(tiles.keys(), len(tiles))
-        # 
-        # for combi in combinations:
-        #     for flip in itertools.product([True, False], repeat=len(tiles)):
-        #         for rotations in itertools.product(range(0, 4), repeat=len(tiles)):
-        #             arranged_tiles = arrange(tiles, flip, rotations, combi)
-        #             if try_combi(arranged_tiles):
-        #                 return math.prod(corners(combi))
-        # 
-        # 
-        # 
-        # tile_id_per_border = defaultdict(set)
-        # for id, tile in tiles.items():
-        #     for border in tile:
-        #         tile_id_per_border[border].add(id)
-        # count_tiles_per_border = {border: len(tiles) for border, tiles in tile_id_per_border.items()}
-        # borders = defaultdict(set)
-        # for border, tile_count in count_tiles_per_border.items():
-        #     borders[tile_count].add(border)
-        # #border_count_per_tile_count = {tile_count: len(border_count) for tile_count, border_count in borders.items()}
-        # n_1 = len(tiles) - 1
-        # if len(borders[4]) == n_1 * n_1 \
-        #     and len(borders[3]) == 3 * 4 * n_1 \
-        #     and len(borders[2]) == 8 \
-        #     and len(borders[1]) == 8:
-        #     return borders[2].intersect(border[1])
-
-        #values = set().union(*input['fields'].values())
-        #return sum([int(value) for value in values])
+        return math.prod(stack.corners())
