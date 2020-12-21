@@ -1,12 +1,6 @@
 import utils
-import re
-from collections import *
-import copy
-import itertools
-
-
-def read_input(filename):
-    return utils.read(filename, 'string')
+import functools
+from collections import defaultdict
 
 
 def parse_line(line):
@@ -16,46 +10,47 @@ def parse_line(line):
     return ingredients, allergens
 
 
+def read_input(filename):
+    text = utils.read(filename, 'string')
+    return [parse_line(line) for line in text.splitlines()]
+
 
 class Stack:
-    def __init__(self, foods, debug=False):
-        self.stack = []  # allergen: ingredient
+    def __init__(self, foods):
+        self.stack = []  # (allergen, ingredient)
         self.foods = foods
-        self.allergens = set().union(*itertools.chain(food[1] for food in foods))
-        self.ingredients = set().union(*itertools.chain(food[0] for food in foods))
-        self.debug = debug
 
-    def contains(self, allergen):
-        return allergen in [s[0] for s in self.stack]
+        self.allergens = defaultdict(set)    # { allergen:   set(food_indices) }
+        self.ingredients = defaultdict(set)  # { ingredient: set(food_indices) }
+
+        def add_food(index):
+            def add(dic, val):
+                dic[val].add(index)
+                return dic
+            return add
+
+        for food_index, (ingredients, allergens) in enumerate(foods):
+            self.allergens = functools.reduce(add_food(food_index), allergens, self.allergens)
+            self.ingredients = functools.reduce(add_food(food_index), ingredients, self.ingredients)
 
     def can_add(self, allergen, ingredient):
-        # return allergen not in [s[0] for s in self.stack] and ingredient not in [s[1] for s in self.stack]
-        contains_all = [food for food in self.foods if allergen in food[1]]
-        contains_ing = [food for food in self.foods if ingredient in food[0]]
-
-        if not all(al in contains_ing for al in contains_all):
-            return False
-        return True
+        return self.allergens[allergen].issubset(self.ingredients[ingredient])
 
     def push(self, allergen, ingredient):
         self.stack.append((allergen, ingredient))
-        if self.debug:
-            print(self.stack)
 
     def pop(self):
         self.stack.pop()
-        if self.debug:
-            print(self.stack)
 
     def is_full(self):
         return len(self.stack) == len(self.allergens)
 
     def fill(self):
         for allergen in self.allergens:
-            if allergen in [s[0] for s in self.stack]:
+            if allergen in [allergen for allergen, ingredient in self.stack]:
                 continue
             for ingredient in self.ingredients:
-                if ingredient in [s[1] for s in self.stack]:
+                if ingredient in [ingredient for allergen, ingredient in self.stack]:
                     continue
                 if self.can_add(allergen, ingredient):
                     self.push(allergen, ingredient)
@@ -64,91 +59,32 @@ class Stack:
                         return self
                     self.pop()
 
-    def ingredients_with_no_allergens(self):
-        return [ingredient for ingredient in self.ingredients if ingredient not in [s[1] for s in self.stack]]
+    def count_safe_ingredients(self):
+        dangerous_ingredients = [ingredient for allergen, ingredient in self.stack]
+        safe_ingredients = set(self.ingredients.keys()).difference(dangerous_ingredients)
+        return sum(len(safe_ingredients.intersection(ingredients)) for ingredients, allergens in self.foods)
 
-    def count_ing_with_no_allergens(self):
-        n = 0
-        ingredients = self.ingredients_with_no_allergens()
-        for food in self.foods:
-            ing_list = food[0]
-            for ing in ing_list:
-                if ing in ingredients:
-                    n += 1
-        return n
-
-    # def __repr__(self):
-    #     return '\n'.join(['Stack ({})'.format(self.next)] + [
-    #         ' '.join(['({} {} {})'.format(tile['id'], tile['rotation'], tile['flip'])
-    #                   if isinstance(tile, dict) else '(XXXX X XXXX)' for tile in row])
-    #         for row in self.stack])
-
-
-
-class Part2(utils.Part):
-    WRONG = [109]
-
-    def __init__(self):
-        super().__init__('mxmxvkd,sqjhc,fvjkl')
-
-    def run(self, input, is_test):
-        foods = [parse_line(line) for line in input.splitlines()]
-
-        stack = Stack(foods)
-        stack.fill()
-        s = stack.stack
-        t = sorted(s, key=lambda x: x[0])
-        return ','.join([i[1] for i in t])
-
+    def list_dangerous_ingredients(self):
+        sorted_list = sorted(self.stack, key=lambda x: x[0])
+        return ','.join([ingredient for allergen, ingredient in sorted_list])
 
 
 class Part1(utils.Part):
-    WRONG = [109]
 
     def __init__(self):
         super().__init__(5)
 
-    def run(self, input, is_test):
-        foods = [parse_line(line) for line in input.splitlines()]
-
-        stack = Stack(foods)
-        stack.fill()
-        print(stack.ingredients_with_no_allergens())
-        print(stack.count_ing_with_no_allergens())
-        return stack.count_ing_with_no_allergens()
-        s = stack.stack
+    def run(self, foods, is_test):
+        stack = Stack(foods).fill()
+        return stack.count_safe_ingredients()
 
 
+class Part2(utils.Part):
 
-        s = {ing: allergen for (allergen, ing) in s}
+    def __init__(self):
+        super().__init__('mxmxvkd,sqjhc,fvjkl')
 
-        n = 0
-        for food in foods:
-            ing = food[0]
-            n += sum(i in s for i in ing)
-        return n if n not in Part1.WRONG else None
-
-        allergens = set().union(*itertools.chain(food[1] for food in foods))
-        ingredients = set().union(*itertools.chain(food[0] for food in foods))
-
-        ing_per_allergen = {}
-        for allergen in allergens:
-            foods_containing_allergen = [food[0] for food in foods if allergen in food[1]]
-            ingredients = set().union(foods_containing_allergen[0])
-            for ing in foods_containing_allergen:
-                ingredients = ingredients.intersection(ing)
-            if len(ingredients) == 1:
-                ing_per_allergen[allergen] = ingredients.pop()
-
-
-
-
-        ing_per_allergen = defaultdict(set)
-        for food in foods:
-            ingredients = food[0]
-            allergens = food[1]
-            for allergen in allergens:
-                ing_per_allergen[allergen] = ing_per_allergen[allergen].union(ingredients)
-        print(ing_per_allergen)
-
-
+    def run(self, foods, is_test):
+        allergen_ingredient_list = Stack(foods).fill().stack
+        sorted_list = sorted(allergen_ingredient_list, key=lambda x: x[0])
+        return ','.join([ingredient for allergen, ingredient in sorted_list])
