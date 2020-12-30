@@ -1,6 +1,9 @@
+aoc-to-markdown==0.2.3
+beautifulsoup4==4.9.3
 certifi==2020.11.8
 chardet==3.0.4
 idna==2.10
 numpy==1.19.4
 requests==2.25.0
+soupsieve==2.1
 urllib3==1.26.2
