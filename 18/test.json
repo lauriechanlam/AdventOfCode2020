@@ -1,0 +1,54 @@
+{
+  "Part1": [
+    {
+      "input": "18/test.txt",
+      "expectation": 71
+    },
+    {
+      "input": "18/test-1.txt",
+      "expectation": 51
+    },
+    {
+      "input": "18/test-2.txt",
+      "expectation": 26
+    },
+    {
+      "input": "18/test-3.txt",
+      "expectation": 437
+    },
+    {
+      "input": "18/test-4.txt",
+      "expectation": 12240
+    },
+    {
+      "input": "18/test-5.txt",
+      "expectation": 13632
+    }
+  ],
+  "Part2": [
+    {
+      "input": "18/test.txt",
+      "expectation": 231
+    },
+    {
+      "input": "18/test-1.txt",
+      "expectation": 51
+    },
+    {
+      "input": "18/test-2.txt",
+      "expectation": 46
+    },
+    {
+      "input": "18/test-3.txt",
+      "expectation": 1445
+    },
+    {
+      "input": "18/test-4.txt",
+      "expectation": 669060
+    },
+    {
+      "input": "18/test-5.txt",
+      "expectation": 23340
+    }
+  ]
+}

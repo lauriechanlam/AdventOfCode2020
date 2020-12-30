@@ -1,30 +1,85 @@
 import datetime
 import importlib
 import sys
-import utils
+import os
+import aoc_to_markdown
+import json
 
 
-def run(module_filename, input_filename):
-    challenge = importlib.import_module(module_filename.replace('.py', ''))
-    part = getattr(challenge, 'Part2', challenge.Part1)()
-    print(type(part).__name__)
+def run(module_filename, input_filename, test_filename):
+    challenge = importlib.import_module(module_filename.replace('.py', '').replace(os.path.sep, '.'))
+    with open(test_filename, 'r') as config_file:
+        test_config = json.loads(config_file.read())
 
-    if part.test_expectation is not None:
-        test_result = part.run(challenge.read_input('resources/test.txt'), is_test=True)
-        assert(test_result == part.test_expectation), \
-            'expected test result to be {}, actually was {}'.format(part.test_expectation, test_result)
-        print('Test succeeded')
-    print('Challenge result: {}'.format(part.run(challenge.read_input(input_filename), is_test=False)))
+    for part_num in range(1, 3):
+        print()
+        print('---------- Part {} ----------'.format(part_num))
+        part_str = 'Part{}'.format(part_num)
+        part = getattr(challenge, part_str)()
+        for config in test_config[part_str]:
+            if config['expectation'] is None:
+                continue
+            test_result = part.run(challenge.read_input(config['input']), is_test=True)
+            assert(test_result == config['expectation']), \
+                'expected test for {} to be {}, actually was {}'.format(
+                    config['input'], config['expectation'], test_result
+                )
+            print('Test {} OK ({})'.format(config['input'], config['expectation']))
+        print('Challenge result: {}'.format(part.run(challenge.read_input(input_filename), is_test=False)))
+
+
+def make_test_files(description_filename, config_filename, folder):
+    if os.path.exists(config_filename):
+        return
+    with open(description_filename, 'r') as description_file:
+        inputs = list(map(lambda text: text[1:-1], description_file.read().split('```')[1::2]))
+    filenames = ['test.txt'] + ['test-{}.txt'.format(num) for num in range(1, len(inputs))]
+    filenames = list(map(lambda basename: os.path.join(folder, basename), filenames))
+    for filename, content in zip(filenames, inputs):
+        with open(filename, 'w') as testfile:
+            testfile.write(content)
+    config = list(map(lambda filename: {'input': filename, 'expectation': None}, filenames))
+    with open(config_filename, 'w') as config_file:
+        config_file.write(json.dumps({'Part1': config, 'Part2': config}, indent=2))
+
+
+def main(argv):
+    if len(argv) > 1:
+        date = datetime.date(2020, 12, int(argv[1]))
+    else:
+        date = datetime.datetime.today()
+
+    with open('resources/session.txt', 'r') as session_file:
+        os.environ['SESSION_ID'] = session_file.read()
+
+    folder = '{:02d}'.format(date.day)
+    files = {
+        'input': os.path.join(folder, 'input.txt'),
+        'module': os.path.join(folder, 'puzzle.py'),
+        'description': os.path.join(folder, 'README.md'),
+        'test': os.path.join(folder, 'test.json')
+    }
+
+    if not os.path.exists(files['description']):
+        aoc_to_markdown.write(files['description'], aoc_to_markdown.get_markdown(date.year, date.day))
+        make_test_files(files['description'], files['test'], folder)
+
+    if not os.path.exists(files['input']):
+        aoc_to_markdown.write(files['input'], aoc_to_markdown.get_input(date.year, date.day))
+
+    if not os.path.exists(files['module']):
+        aoc_to_markdown.copy('resources/challenge-template.py', files['module'])
+
+    del os.environ['SESSION_ID']
+
+    print()
+    print()
+    print('===== Puzzle {}-12-{:02d} ====='.format(date.year, date.day))
+    print()
+    for name, file in files.items():
+        print('{}: {}'.format(name.capitalize(), file))
+    run(files['module'], files['input'], files['test'])
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        date = datetime.date(2020, 12, int(sys.argv[1]))
-    else:
-        date = datetime.datetime.today()
-    print('===== Challenge {}-12-{:02d} ====='.format(date.year, date.day))
-    input_filename = utils.download_input_if_necessary(date)
-    print('Input file: {}'.format(input_filename))
-    module_filename = utils.copy_template_if_necessary(date)
-    print('Module file: {}'.format(module_filename))
-    run(module_filename, input_filename)
+    main(sys.argv)

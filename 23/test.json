@@ -1,0 +1,14 @@
+{
+  "Part1": [
+    {
+      "input": "23/test.txt",
+      "expectation": 67384529
+    }
+  ],
+  "Part2": [
+    {
+      "input": "23/test.txt",
+      "expectation": 149245887792
+    }
+  ]
+}
