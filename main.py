@@ -1,9 +1,10 @@
+import aoc_to_markdown
 import datetime
 import importlib
-import sys
-import os
-import aoc_to_markdown
 import json
+import logging
+import os
+import sys
 
 
 def run(module_filename, input_filename, test_filename):
@@ -12,20 +13,20 @@ def run(module_filename, input_filename, test_filename):
         test_config = json.loads(config_file.read())
 
     for part_num in range(1, 3):
-        print()
-        print('---------- Part {} ----------'.format(part_num))
+        logging.info('---------- Part {} ----------'.format(part_num))
         part_str = 'Part{}'.format(part_num)
         part = getattr(challenge, part_str)()
         for config in test_config[part_str]:
             if config['expectation'] is None:
                 continue
             test_result = part.run(challenge.read_input(config['input']), is_test=True)
-            assert(test_result == config['expectation']), \
-                'expected test for {} to be {}, actually was {}'.format(
+            if test_result != config['expectation']:
+                logging.error('expected test for {} to be {}, actually was {}'.format(
                     config['input'], config['expectation'], test_result
-                )
-            print('Test {} OK ({})'.format(config['input'], config['expectation']))
-        print('Challenge result: {}'.format(part.run(challenge.read_input(input_filename), is_test=False)))
+                ))
+            else:
+                logging.info('Test {} OK ({})'.format(config['input'], config['expectation']))
+        logging.info('Puzzle result: {}'.format(part.run(challenge.read_input(input_filename), is_test=False)))
 
 
 def make_test_files(description_filename, config_filename, folder):
@@ -41,6 +42,16 @@ def make_test_files(description_filename, config_filename, folder):
     config = list(map(lambda filename: {'input': filename, 'expectation': None}, filenames))
     with open(config_filename, 'w') as config_file:
         config_file.write(json.dumps({'Part1': config, 'Part2': config}, indent=2))
+
+
+def setup_logger():
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('%(asctime)s - [%(levelname)s] %(message)s'))
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.addHandler(handler)
 
 
 def main(argv):
@@ -72,14 +83,12 @@ def main(argv):
 
     del os.environ['SESSION_ID']
 
-    print()
-    print()
-    print('===== Puzzle {}-12-{:02d} ====='.format(date.year, date.day))
-    print()
+    logging.info('===== Puzzle {}-12-{:02d} ====='.format(date.year, date.day))
     for name, file in files.items():
-        print('{}: {}'.format(name.capitalize(), file))
+        logging.info('{}: {}'.format(name.capitalize(), file))
     run(files['module'], files['input'], files['test'])
 
 
 if __name__ == '__main__':
+    setup_logger()
     main(sys.argv)
